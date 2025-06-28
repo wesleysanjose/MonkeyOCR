@@ -44,6 +44,13 @@ Currently, our model is deployed on a single GPU, so if too many users upload fi
 ## Locally Install
 ### 1. Install MonkeyOCR
 See the [installation guide](https://github.com/Yuliang-Liu/MonkeyOCR/blob/main/docs/install_cuda.md) to set up your environment.
+
+**Important:** After setting up your environment, install MonkeyOCR from the local repository:
+```bash
+# Install from local source (required for custom modules)
+pip install -e .
+```
+⚠️ **Do NOT install `magic_pdf` from PyPI** as it lacks the custom MonkeyOCR modules.
 ### 2. Download Model Weights
 Download our model from Huggingface.
 ```python
