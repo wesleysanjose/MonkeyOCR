@@ -4,6 +4,10 @@ MonkeyOCR FastAPI Application
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 import io
 import tempfile
 from typing import Optional, List, Dict
@@ -92,7 +96,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-temp_dir = os.getenv("TEMP_DIR", "/app/tmp")
+temp_dir = os.getenv("TEMP_DIR", tempfile.gettempdir())
 os.makedirs(temp_dir, exist_ok=True)
 # Only mount static files if S3 is not configured
 if not os.getenv("S3_BUCKET_NAME"):
