@@ -7,6 +7,7 @@ export interface TaskResponse {
   task_type: string;
   content: string;
   message?: string;
+  s3_url?: string;
 }
 
 export interface ParseResponse {
@@ -17,6 +18,7 @@ export interface ParseResponse {
   download_url?: string;
   download_size?: number;
   request_id?: string;
+  file_urls?: Record<string, string>;  // Map of filename to S3 URL
 }
 
 class MonkeyOCRAPI {

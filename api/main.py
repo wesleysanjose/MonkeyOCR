@@ -6,7 +6,7 @@ MonkeyOCR FastAPI Application
 import os
 import io
 import tempfile
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pathlib import Path
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -24,6 +24,11 @@ from magic_pdf.model.custom_model import MonkeyOCR
 from magic_pdf.data.data_reader_writer import FileBasedDataWriter
 from parse import single_task_recognition, parse_pdf
 import uvicorn
+try:
+    from .s3_utils import get_s3_client, S3Client
+except ImportError:
+    # For running as standalone script
+    from s3_utils import get_s3_client, S3Client
 
 # Response models
 class TaskResponse(BaseModel):
@@ -31,6 +36,7 @@ class TaskResponse(BaseModel):
     task_type: str
     content: str
     message: Optional[str] = None
+    s3_url: Optional[str] = None
 
 class ParseResponse(BaseModel):
     success: bool
@@ -38,10 +44,12 @@ class ParseResponse(BaseModel):
     output_dir: Optional[str] = None
     files: Optional[List[str]] = None
     download_url: Optional[str] = None
+    file_urls: Optional[Dict[str, str]] = None  # Map of filename to S3 URL
 
 # Global model instance
 monkey_ocr_model = None
 executor = ThreadPoolExecutor(max_workers=2)
+s3_client: Optional[S3Client] = None
 
 def initialize_model():
     """Initialize MonkeyOCR model"""
@@ -58,8 +66,16 @@ async def lifespan(app: FastAPI):
     try:
         initialize_model()
         print("✅ MonkeyOCR model initialized successfully")
+        
+        # Initialize S3 client if configured
+        global s3_client
+        if os.getenv("S3_BUCKET_NAME"):
+            s3_client = get_s3_client()
+            print("✅ S3 client initialized successfully")
+        else:
+            print("⚠️  S3 not configured, using local file storage")
     except Exception as e:
-        print(f"❌ Failed to initialize MonkeyOCR model: {e}")
+        print(f"❌ Failed to initialize: {e}")
         raise
     
     yield
@@ -76,9 +92,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-temp_dir = "/app/tmp"
+temp_dir = os.getenv("TEMP_DIR", "/app/tmp")
 os.makedirs(temp_dir, exist_ok=True)
-app.mount("/static", StaticFiles(directory=temp_dir), name="static")
+# Only mount static files if S3 is not configured
+if not os.getenv("S3_BUCKET_NAME"):
+    app.mount("/static", StaticFiles(directory=temp_dir), name="static")
 
 @app.get("/")
 async def root():
@@ -149,7 +167,7 @@ async def parse_document(file: UploadFile = File(...)):
             
             # Create download URL with original filename
             zip_filename = f"{original_name}_parsed_{int(time.time())}.zip"
-            zip_path = os.path.join("/app/tmp", zip_filename)
+            zip_path = os.path.join(temp_dir, zip_filename)
             
             # Create ZIP file with renamed files
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -186,14 +204,59 @@ async def parse_document(file: UploadFile = File(...)):
                         
                         zipf.write(file_path, new_filename)
             
-            download_url = f"/static/{zip_filename}"
+            # Prepare file URLs dictionary
+            file_urls = {}
+            
+            # Upload to S3 if configured, otherwise use local storage
+            if s3_client:
+                # Upload individual files to S3 for direct access
+                if os.getenv("UPLOAD_INDIVIDUAL_FILES_S3", "true").lower() == "true":
+                    for root, dirs, filenames in os.walk(result_dir):
+                        for filename in filenames:
+                            file_path = os.path.join(root, filename)
+                            rel_path = os.path.relpath(file_path, result_dir)
+                            
+                            # Generate S3 key for individual file
+                            file_s3_key = f"{s3_client.prefix}/parsed/{int(time.time())}_{original_name}/{rel_path}"
+                            
+                            # Upload individual file
+                            s3_client.upload_file(file_path, file_s3_key, metadata={
+                                'original_filename': file.filename,
+                                'file_type': os.path.splitext(filename)[1],
+                                'task_type': 'parse'
+                            })
+                            
+                            # Generate presigned URL for individual file
+                            file_url = s3_client.generate_presigned_url(file_s3_key, expiration=86400)  # 24 hours
+                            file_urls[rel_path] = file_url
+                
+                # Upload ZIP file
+                # Generate S3 key
+                s3_key = s3_client.generate_s3_key("parsed", original_name)
+                
+                # Upload to S3
+                s3_client.upload_file(zip_path, s3_key, metadata={
+                    'original_filename': file.filename,
+                    'task_type': 'parse',
+                    'timestamp': str(int(time.time()))
+                })
+                
+                # Generate presigned URL
+                download_url = s3_client.generate_presigned_url(s3_key, expiration=86400)  # 24 hours
+                
+                # Clean up local ZIP file
+                os.unlink(zip_path)
+            else:
+                # Use local file storage
+                download_url = f"/static/{zip_filename}"
             
             return ParseResponse(
                 success=True,
                 message="Document parsing completed successfully",
                 output_dir=result_dir,
                 files=files,
-                download_url=download_url
+                download_url=download_url,
+                file_urls=file_urls if file_urls else None
             )
             
         finally:
@@ -205,17 +268,28 @@ async def parse_document(file: UploadFile = File(...)):
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    """Download result files"""
-    file_path = os.path.join("/app/tmp", filename)
-    
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type='application/octet-stream'
-    )
+    """Download result files - redirects to S3 if configured"""
+    if s3_client:
+        # For S3, we expect the filename to be an S3 key
+        # Generate a new presigned URL
+        try:
+            download_url = s3_client.generate_presigned_url(filename, expiration=3600)
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=download_url)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"File not found: {str(e)}")
+    else:
+        # Local file storage
+        file_path = os.path.join(temp_dir, filename)
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )
 
 @app.get("/results/{task_id}")
 async def get_results(task_id: str):
@@ -278,11 +352,28 @@ async def perform_ocr_task(file: UploadFile, task_type: str) -> TaskResponse:
             with open(result_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
+            # Optionally upload to S3 if client wants to store results
+            s3_url = None
+            if s3_client and os.getenv("STORE_OCR_RESULTS_S3", "false").lower() == "true":
+                # Generate S3 key
+                s3_key = s3_client.generate_s3_key("ocr", file.filename, task_type)
+                
+                # Upload to S3
+                s3_client.upload_file(result_file_path, s3_key, metadata={
+                    'original_filename': file.filename,
+                    'task_type': task_type,
+                    'timestamp': str(int(time.time()))
+                })
+                
+                # Generate presigned URL
+                s3_url = s3_client.generate_presigned_url(s3_key, expiration=86400)  # 24 hours
+            
             return TaskResponse(
                 success=True,
                 task_type=task_type,
                 content=content,
-                message=f"{task_type.capitalize()} extraction completed successfully"
+                message=f"{task_type.capitalize()} extraction completed successfully",
+                s3_url=s3_url if s3_url else None
             )
             
         finally:

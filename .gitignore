@@ -53,3 +53,66 @@ _build/
 output/
 build/
 model_weight
+
+# MonkeyOCR Web Frontend
+monkeyocr-web/node_modules/
+monkeyocr-web/.next/
+monkeyocr-web/out/
+monkeyocr-web/.env.local
+monkeyocr-web/.env.production
+monkeyocr-web/.env.development
+monkeyocr-web/.vercel
+monkeyocr-web/npm-debug.log*
+monkeyocr-web/yarn-debug.log*
+monkeyocr-web/yarn-error.log*
+
+# Python
+*.py[cod]
+*$py.class
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg
+
+# Virtual environments
+env/
+ENV/
+env.bak/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Logs
+logs/
+*.log.*
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Model weights and data
+*.pth
+*.pt
+*.pkl
+*.h5
+*.onnx
+*.safetensors

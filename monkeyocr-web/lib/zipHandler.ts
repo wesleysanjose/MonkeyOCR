@@ -10,10 +10,22 @@ export async function downloadAndExtractZip(url: string): Promise<ExtractedFiles
   try {
     console.log('Downloading ZIP from:', url);
     
-    // If the URL starts with http://localhost:7861, replace with proxy path
+    // Handle different URL types
     let fetchUrl = url;
+    
+    // Case 1: Local API server URLs
     if (url.startsWith('http://localhost:7861')) {
       fetchUrl = url.replace('http://localhost:7861', '/api/monkeyocr');
+    }
+    // Case 2: S3 pre-signed URLs - use them directly
+    else if (url.includes('s3.amazonaws.com') || url.includes('s3.') || url.includes('X-Amz-')) {
+      // S3 URLs should be used directly
+      fetchUrl = url;
+    }
+    // Case 3: Relative URLs
+    else if (url.startsWith('/')) {
+      // Already relative, use as-is
+      fetchUrl = url;
     }
     
     console.log('Fetching from:', fetchUrl);
