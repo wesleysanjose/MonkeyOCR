@@ -17,9 +17,14 @@ export async function downloadAndExtractZip(url: string): Promise<ExtractedFiles
     if (url.startsWith('http://localhost:7861')) {
       fetchUrl = url.replace('http://localhost:7861', '/api/monkeyocr');
     }
-    // Case 2: S3 pre-signed URLs - use them directly
-    else if (url.includes('s3.amazonaws.com') || url.includes('s3.') || url.includes('X-Amz-')) {
-      // S3 URLs should be used directly
+    // Case 2: S3/MinIO pre-signed URLs - use them directly
+    else if (url.includes('s3.amazonaws.com') || 
+             url.includes('s3.') || 
+             url.includes('X-Amz-') ||
+             url.includes('minio') ||
+             url.includes(':9000') ||  // Common MinIO port
+             url.match(/https?:\/\/[^\/]+\/[^\/]+\?.*X-Amz/)) {  // Any URL with S3 signature
+      // S3/MinIO URLs should be used directly
       fetchUrl = url;
     }
     // Case 3: Relative URLs

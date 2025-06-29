@@ -15,15 +15,31 @@ class S3Client:
         self.bucket_name = os.getenv("S3_BUCKET_NAME")
         self.region = os.getenv("AWS_REGION", "us-east-1")
         self.prefix = os.getenv("S3_PREFIX", "monkeyocr")
+        self.endpoint_url = os.getenv("S3_ENDPOINT_URL")  # For MinIO/S3-compatible services
+        self.use_ssl = os.getenv("S3_USE_SSL", "true").lower() == "true"
+        self.verify_ssl = os.getenv("S3_VERIFY_SSL", "true").lower() == "true"
+        
+        # Build client configuration
+        client_config = {
+            'service_name': 's3',
+            'region_name': self.region,
+            'aws_access_key_id': os.getenv("AWS_ACCESS_KEY_ID"),
+            'aws_secret_access_key': os.getenv("AWS_SECRET_ACCESS_KEY"),
+        }
+        
+        # Add optional parameters
+        if os.getenv("AWS_SESSION_TOKEN"):
+            client_config['aws_session_token'] = os.getenv("AWS_SESSION_TOKEN")
+        
+        # Add endpoint URL for S3-compatible services (MinIO, etc.)
+        if self.endpoint_url:
+            client_config['endpoint_url'] = self.endpoint_url
+            client_config['use_ssl'] = self.use_ssl
+            client_config['verify'] = self.verify_ssl
+            logger.info(f"Using custom S3 endpoint: {self.endpoint_url}")
         
         # Initialize S3 client
-        self.s3_client = boto3.client(
-            's3',
-            region_name=self.region,
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            aws_session_token=os.getenv("AWS_SESSION_TOKEN")  # Optional, for temporary credentials
-        )
+        self.s3_client = boto3.client(**client_config)
         
         if not self.bucket_name:
             raise ValueError("S3_BUCKET_NAME environment variable is required")
@@ -98,6 +114,7 @@ class S3Client:
             Presigned URL
         """
         try:
+            # Generate the URL
             url = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={
@@ -106,6 +123,14 @@ class S3Client:
                 },
                 ExpiresIn=expiration
             )
+            
+            # For MinIO and other S3-compatible services, we might need to use a public URL
+            # if configured (useful when MinIO is behind a proxy/load balancer)
+            public_url = os.getenv("S3_PUBLIC_URL")
+            if public_url and self.endpoint_url:
+                # Replace the internal endpoint with the public URL
+                url = url.replace(self.endpoint_url, public_url.rstrip('/'))
+            
             return url
         except ClientError as e:
             logger.error(f"Failed to generate presigned URL: {e}")
