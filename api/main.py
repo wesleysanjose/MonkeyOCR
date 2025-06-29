@@ -230,13 +230,16 @@ async def parse_document(
                 try:
                     # Upload individual files to S3 for direct access
                     if os.getenv("UPLOAD_INDIVIDUAL_FILES_S3", "true").lower() == "true":
+                        # Generate timestamp once for this parse operation
+                        parse_timestamp = int(time.time())
+                        
                         for root, dirs, filenames in os.walk(result_dir):
                             for filename in filenames:
                                 file_path = os.path.join(root, filename)
                                 rel_path = os.path.relpath(file_path, result_dir)
                                 
-                                # Generate S3 key for individual file
-                                file_s3_key = f"{s3_client.prefix}/parsed/{int(time.time())}_{original_name}/{rel_path}"
+                                # Generate S3 key for individual file using the same timestamp
+                                file_s3_key = f"{s3_client.prefix}/parsed/{parse_timestamp}_{original_name}/{rel_path}"
                                 
                                 # Upload individual file
                                 s3_client.upload_file(file_path, file_s3_key, metadata={
