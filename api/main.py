@@ -148,14 +148,19 @@ async def parse_document(
             raise HTTPException(status_code=500, detail="Model not initialized")
         
         # Validate file type
-        if not file.filename.lower().endswith('.pdf'):
-            raise HTTPException(status_code=400, detail="Only PDF files are supported for document parsing")
+        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png'}
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
+            )
         
         # Get original filename without extension
         original_name = '.'.join(file.filename.split('.')[:-1])
         
         # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
             content = await file.read()
             temp_file.write(content)
             temp_file_path = temp_file.name

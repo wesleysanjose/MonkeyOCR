@@ -228,7 +228,7 @@ export default function Home() {
               <div className="space-y-3">
                 <button
                   onClick={handleParse}
-                  disabled={!selectedFile || selectedFile.type !== 'application/pdf' || isProcessing}
+                  disabled={!selectedFile || (!selectedFile.type.startsWith('image/') && selectedFile.type !== 'application/pdf') || isProcessing}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   🔍 Parse (解析)
