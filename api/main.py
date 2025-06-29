@@ -106,7 +106,12 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "model_loaded": monkey_ocr_model is not None}
+    return {
+        "status": "healthy", 
+        "model_loaded": monkey_ocr_model is not None,
+        "s3_configured": s3_client is not None,
+        "temp_dir": temp_dir
+    }
 
 @app.post("/ocr/text", response_model=TaskResponse)
 async def extract_text(file: UploadFile = File(...)):
@@ -209,6 +214,7 @@ async def parse_document(file: UploadFile = File(...)):
             
             # Upload to S3 if configured, otherwise use local storage
             if s3_client:
+                try:
                 # Upload individual files to S3 for direct access
                 if os.getenv("UPLOAD_INDIVIDUAL_FILES_S3", "true").lower() == "true":
                     for root, dirs, filenames in os.walk(result_dir):
@@ -246,6 +252,10 @@ async def parse_document(file: UploadFile = File(...)):
                 
                 # Clean up local ZIP file
                 os.unlink(zip_path)
+                except Exception as s3_error:
+                    print(f"S3 upload error: {s3_error}")
+                    # Fallback to local storage on S3 error
+                    download_url = f"/static/{zip_filename}"
             else:
                 # Use local file storage
                 download_url = f"/static/{zip_filename}"
@@ -261,9 +271,15 @@ async def parse_document(file: UploadFile = File(...)):
             
         finally:
             # Clean up temporary file
-            os.unlink(temp_file_path)
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            # Clean up result directory after some time (optional)
+            # shutil.rmtree(result_dir, ignore_errors=True)
             
     except Exception as e:
+        import traceback
+        print(f"Parse endpoint error: {e}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
 
 @app.get("/download/{filename}")

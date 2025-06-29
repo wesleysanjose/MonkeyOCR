@@ -221,10 +221,28 @@ class MonkeyChat_transformers:
         logger.info(f"Max batch size: {self.max_batch_size}")
         
         try:
+            # Check if flash_attn is available
+            use_flash_attention = False
+            if self.device.startswith("cuda"):
+                try:
+                    import flash_attn
+                    use_flash_attention = True
+                    logger.info("Flash Attention 2 is available and will be used")
+                except ImportError:
+                    logger.warning("Flash Attention 2 not installed, falling back to standard attention")
+            
+            # Determine attention implementation
+            if use_flash_attention:
+                attn_implementation = "flash_attention_2"
+            elif self.device.startswith("cuda"):
+                attn_implementation = "sdpa"  # Scaled Dot Product Attention (PyTorch native)
+            else:
+                attn_implementation = "eager"  # Standard attention for CPU/MPS
+            
             self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                         model_path,
                         torch_dtype=torch.bfloat16 if bf16_supported else torch.float16,
-                        attn_implementation="flash_attention_2" if self.device.startswith("cuda") else 'sdpa',
+                        attn_implementation=attn_implementation,
                         device_map=self.device,
                     )
                 
