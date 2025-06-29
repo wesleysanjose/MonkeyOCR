@@ -20,7 +20,7 @@ TASK_INSTRUCTIONS = {
     'table': 'Please output the table in the image in LaTeX format.'
 }
 
-def parse_folder(folder_path, output_dir, config_path, task=None):
+def parse_folder(folder_path, output_dir, config_path, task=None, page_markers=False):
     """
     Parse all PDF and image files in a folder
     
@@ -77,7 +77,7 @@ def parse_folder(folder_path, output_dir, config_path, task=None):
             if task:
                 result_dir = single_task_recognition(file_path, output_dir, MonkeyOCR_model, task)
             else:
-                result_dir = parse_pdf(file_path, output_dir, MonkeyOCR_model)
+                result_dir = parse_pdf(file_path, output_dir, MonkeyOCR_model, page_markers)
             
             successful_files.append(file_path)
             print(f"✅ Successfully processed: {os.path.basename(file_path)}")
@@ -204,7 +204,7 @@ def single_task_recognition(input_file, output_dir, MonkeyOCR_model, task):
     except Exception as e:
         raise RuntimeError(f"Single task recognition failed: {str(e)}")
 
-def parse_pdf(input_file, output_dir, MonkeyOCR_model):
+def parse_pdf(input_file, output_dir, MonkeyOCR_model, page_markers=False):
     """
     Parse PDF file and save results
     
@@ -262,7 +262,7 @@ def parse_pdf(input_file, output_dir, MonkeyOCR_model):
 
     pipe_result.draw_span(os.path.join(local_md_dir, f"{name_without_suff}_spans.pdf"))
 
-    pipe_result.dump_md(md_writer, f"{name_without_suff}.md", image_dir)
+    pipe_result.dump_md(md_writer, f"{name_without_suff}.md", image_dir, page_markers=page_markers)
     
     pipe_result.dump_content_list(md_writer, f"{name_without_suff}_content_list.json", image_dir)
 
@@ -313,6 +313,12 @@ Usage examples:
         help="Single task recognition type (text/formula/table). Supports both image and PDF files."
     )
     
+    parser.add_argument(
+        "-p", "--page-markers",
+        action="store_true",
+        help="Insert page break markers between pages in markdown output"
+    )
+    
     args = parser.parse_args()
     
     MonkeyOCR_model = None
@@ -325,7 +331,8 @@ Usage examples:
                 args.input_path,
                 args.output,
                 args.config,
-                args.task
+                args.task,
+                args.page_markers
             )
             
             if args.task:
@@ -349,7 +356,8 @@ Usage examples:
                 result_dir = parse_pdf(
                     args.input_path,
                     args.output,
-                    MonkeyOCR_model
+                    MonkeyOCR_model,
+                    args.page_markers
                 )
                 print(f"\n✅ Parsing completed! Results saved in: {result_dir}")
         else:

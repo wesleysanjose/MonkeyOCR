@@ -133,8 +133,16 @@ async def extract_table(file: UploadFile = File(...)):
     return await perform_ocr_task(file, "table")
 
 @app.post("/parse", response_model=ParseResponse)
-async def parse_document(file: UploadFile = File(...)):
-    """Parse complete document (PDF only)"""
+async def parse_document(
+    file: UploadFile = File(...),
+    page_markers: bool = Form(False)
+):
+    """Parse complete document (PDF only)
+    
+    Args:
+        file: PDF file to parse
+        page_markers: Whether to insert page break markers between pages
+    """
     try:
         if not monkey_ocr_model:
             raise HTTPException(status_code=500, detail="Model not initialized")
@@ -163,7 +171,8 @@ async def parse_document(file: UploadFile = File(...)):
                 parse_pdf, 
                 temp_file_path, 
                 output_dir, 
-                monkey_ocr_model
+                monkey_ocr_model,
+                page_markers
             )
             
             # List generated files

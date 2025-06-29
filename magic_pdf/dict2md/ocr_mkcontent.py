@@ -245,8 +245,11 @@ def union_make(pdf_info_dict: list,
                make_mode: str,
                drop_mode: str,
                img_buket_path: str = '',
+               page_markers: bool = False,
                ):
     output_content = []
+    total_pages = len(pdf_info_dict)
+    
     for page_info in pdf_info_dict:
         drop_reason_flag = False
         drop_reason = None
@@ -270,6 +273,22 @@ def union_make(pdf_info_dict: list,
         page_idx = page_info.get('page_idx')
         if not paras_of_layout:
             continue
+            
+        # Add page marker before content (except for first page)
+        if page_markers and page_idx > 0 and output_content:
+            if make_mode in [MakeMode.MM_MD, MakeMode.NLP_MD]:
+                # For markdown modes, add HTML comment as page marker
+                page_marker = f"<!-- Page Break: Page {page_idx + 1} of {total_pages} -->"
+                output_content.append(page_marker)
+            elif make_mode == MakeMode.STANDARD_FORMAT:
+                # For standard format, add as a separate block
+                page_marker_block = {
+                    'type': 'page_break',
+                    'page_num': page_idx + 1,
+                    'total_pages': total_pages
+                }
+                output_content.append(page_marker_block)
+        
         if make_mode == MakeMode.MM_MD:
             page_markdown = ocr_mk_markdown_with_para_core_v2(
                 paras_of_layout, 'mm', img_buket_path)
