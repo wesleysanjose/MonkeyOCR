@@ -61,12 +61,13 @@ UPLOAD_INDIVIDUAL_FILES_S3=true
 STORE_OCR_RESULTS_S3=true
 ```
 
-### 3. Create Bucket
+### 3. Create Bucket and Configure CORS
 
 Option 1: Using MinIO Console
 - Open http://localhost:9001
 - Login with minioadmin/minioadmin123
 - Create a bucket named "monkeyocr"
+- Go to bucket settings and add CORS configuration
 
 Option 2: Using MinIO Client (mc):
 ```bash
@@ -83,6 +84,23 @@ mc mb local/monkeyocr
 
 # Set download policy
 mc anonymous set download local/monkeyocr
+
+# Configure CORS for web access
+cat > cors.json << 'EOF'
+{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedOrigins": ["*"],
+      "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}
+EOF
+
+mc anonymous set-json cors.json local/monkeyocr
 ```
 
 Option 3: Using AWS CLI:

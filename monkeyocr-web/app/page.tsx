@@ -7,7 +7,7 @@ import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { ChatInterface, ChatPrompt } from '../components/ChatInterface';
 import { monkeyOCRAPI, ParseResponse, TaskResponse } from '../lib/api';
 import { downloadAndExtractZip } from '../lib/zipHandler';
-import { extractFromS3Urls } from '../lib/s3Handler';
+import { processS3Files } from '../lib/s3DirectHandler';
 
 const chatPrompts: ChatPrompt[] = [
   {
@@ -80,8 +80,8 @@ export default function Home() {
             
             // Check if we have individual file URLs (S3 optimization)
             if (response.file_urls && Object.keys(response.file_urls).length > 0) {
-              console.log('Using S3 direct URLs for faster access');
-              extracted = await extractFromS3Urls(response.file_urls);
+              console.log('Using S3 direct URLs - images will load from S3');
+              extracted = await processS3Files(response.file_urls);
             } else {
               // Fallback to downloading ZIP
               console.log('Downloading ZIP file');

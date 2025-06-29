@@ -50,12 +50,54 @@ Enable individual file uploads in `.env`:
 UPLOAD_INDIVIDUAL_FILES_S3=true
 ```
 
+## Important: CORS Configuration
+
+For the web interface to load images directly from S3/MinIO, you **MUST** configure CORS:
+
+### MinIO CORS Setup:
+```bash
+# Using mc (MinIO Client)
+cat > cors.json << 'EOF'
+{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedOrigins": ["*"],
+      "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}
+EOF
+
+mc anonymous set-json cors.json myminio/monkeyocr
+```
+
+### AWS S3 CORS Setup:
+```bash
+aws s3api put-bucket-cors --bucket monkeyocr --cors-configuration '{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedOrigins": ["*"],
+      "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}'
+```
+
+**Note**: For production, replace `"AllowedOrigins": ["*"]` with your specific domain.
+
 ## Benefits
 
 1. **Performance**:
-   - Parallel downloads of individual files
-   - No ZIP extraction overhead
-   - Faster initial display
+   - Images load directly from S3 without downloading
+   - No base64 encoding overhead
+   - Browser can cache S3 images
+   - Faster initial page display
 
 2. **Scalability**:
    - Direct S3 access reduces API server load
