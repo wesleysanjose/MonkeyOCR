@@ -215,43 +215,43 @@ async def parse_document(file: UploadFile = File(...)):
             # Upload to S3 if configured, otherwise use local storage
             if s3_client:
                 try:
-                # Upload individual files to S3 for direct access
-                if os.getenv("UPLOAD_INDIVIDUAL_FILES_S3", "true").lower() == "true":
-                    for root, dirs, filenames in os.walk(result_dir):
-                        for filename in filenames:
-                            file_path = os.path.join(root, filename)
-                            rel_path = os.path.relpath(file_path, result_dir)
-                            
-                            # Generate S3 key for individual file
-                            file_s3_key = f"{s3_client.prefix}/parsed/{int(time.time())}_{original_name}/{rel_path}"
-                            
-                            # Upload individual file
-                            s3_client.upload_file(file_path, file_s3_key, metadata={
-                                'original_filename': file.filename,
-                                'file_type': os.path.splitext(filename)[1],
-                                'task_type': 'parse'
-                            })
-                            
-                            # Generate presigned URL for individual file
-                            file_url = s3_client.generate_presigned_url(file_s3_key, expiration=86400)  # 24 hours
-                            file_urls[rel_path] = file_url
-                
-                # Upload ZIP file
-                # Generate S3 key
-                s3_key = s3_client.generate_s3_key("parsed", original_name)
-                
-                # Upload to S3
-                s3_client.upload_file(zip_path, s3_key, metadata={
-                    'original_filename': file.filename,
-                    'task_type': 'parse',
-                    'timestamp': str(int(time.time()))
-                })
-                
-                # Generate presigned URL
-                download_url = s3_client.generate_presigned_url(s3_key, expiration=86400)  # 24 hours
-                
-                # Clean up local ZIP file
-                os.unlink(zip_path)
+                    # Upload individual files to S3 for direct access
+                    if os.getenv("UPLOAD_INDIVIDUAL_FILES_S3", "true").lower() == "true":
+                        for root, dirs, filenames in os.walk(result_dir):
+                            for filename in filenames:
+                                file_path = os.path.join(root, filename)
+                                rel_path = os.path.relpath(file_path, result_dir)
+                                
+                                # Generate S3 key for individual file
+                                file_s3_key = f"{s3_client.prefix}/parsed/{int(time.time())}_{original_name}/{rel_path}"
+                                
+                                # Upload individual file
+                                s3_client.upload_file(file_path, file_s3_key, metadata={
+                                    'original_filename': file.filename,
+                                    'file_type': os.path.splitext(filename)[1],
+                                    'task_type': 'parse'
+                                })
+                                
+                                # Generate presigned URL for individual file
+                                file_url = s3_client.generate_presigned_url(file_s3_key, expiration=86400)  # 24 hours
+                                file_urls[rel_path] = file_url
+                    
+                    # Upload ZIP file
+                    # Generate S3 key
+                    s3_key = s3_client.generate_s3_key("parsed", original_name)
+                    
+                    # Upload to S3
+                    s3_client.upload_file(zip_path, s3_key, metadata={
+                        'original_filename': file.filename,
+                        'task_type': 'parse',
+                        'timestamp': str(int(time.time()))
+                    })
+                    
+                    # Generate presigned URL
+                    download_url = s3_client.generate_presigned_url(s3_key, expiration=86400)  # 24 hours
+                    
+                    # Clean up local ZIP file
+                    os.unlink(zip_path)
                 except Exception as s3_error:
                     print(f"S3 upload error: {s3_error}")
                     # Fallback to local storage on S3 error
