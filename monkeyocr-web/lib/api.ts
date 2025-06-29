@@ -70,9 +70,10 @@ class MonkeyOCRAPI {
     return response.data;
   }
 
-  async parseDocument(file: File): Promise<ParseResponse> {
+  async parseDocument(file: File, pageMarkers: boolean = false): Promise<ParseResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('page_markers', pageMarkers.toString());
     
     const response = await this.axiosInstance.post<ParseResponse>('/parse', formData, {
       headers: {

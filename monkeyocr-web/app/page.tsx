@@ -42,6 +42,9 @@ export default function Home() {
   const [layoutPdfBlob, setLayoutPdfBlob] = useState<Blob | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string>('');
   const [downloadSize, setDownloadSize] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [markdownPageCount, setMarkdownPageCount] = useState<number>(1);
+  const [syncNavigation, setSyncNavigation] = useState<boolean>(true);
 
   const handleFileSelect = useCallback((file: File) => {
     setSelectedFile(file);
@@ -51,6 +54,8 @@ export default function Home() {
     setLayoutPdfBlob(null);
     setDownloadUrl('');
     setDownloadSize(0);
+    setCurrentPage(1);
+    setMarkdownPageCount(1);
   }, []);
 
   const handleParse = useCallback(async () => {
@@ -61,7 +66,8 @@ export default function Home() {
     setRawMarkdownContent('⏳ Processing document...');
 
     try {
-      const response: ParseResponse = await monkeyOCRAPI.parseDocument(selectedFile);
+      // Parse with page markers for synchronized navigation
+      const response: ParseResponse = await monkeyOCRAPI.parseDocument(selectedFile, syncNavigation);
       
       if (response.success) {
         if (response.download_url) {
@@ -122,7 +128,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile]);
+  }, [selectedFile, syncNavigation]);
 
   const handleChat = useCallback(async () => {
     if (!selectedFile) return;
@@ -173,6 +179,16 @@ export default function Home() {
     setLayoutPdfBlob(null);
     setDownloadUrl('');
     setDownloadSize(0);
+    setCurrentPage(1);
+    setMarkdownPageCount(1);
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handleMarkdownPageCountChange = useCallback((count: number) => {
+    setMarkdownPageCount(count);
   }, []);
 
   return (
@@ -224,6 +240,23 @@ export default function Home() {
                 >
                   🗑️ Clear (清除)
                 </button>
+                
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={syncNavigation}
+                      onChange={(e) => setSyncNavigation(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      🔄 Sync PDF/Markdown Navigation
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    When enabled, parsing includes page markers for synchronized viewing
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -234,7 +267,12 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow-md p-6 flex flex-col h-full">
               <h3 className="text-lg font-semibold mb-4">👁️ File Preview (文件预览)</h3>
               <div className="flex-1">
-                <PDFViewer file={selectedFile} layoutPdfBlob={layoutPdfBlob} />
+                <PDFViewer 
+                  file={selectedFile} 
+                  layoutPdfBlob={layoutPdfBlob}
+                  currentPage={syncNavigation ? currentPage : undefined}
+                  onPageChange={syncNavigation ? handlePageChange : undefined}
+                />
               </div>
             </div>
 
@@ -271,7 +309,9 @@ export default function Home() {
               <div className="flex-1">
                 <MarkdownRenderer 
                   content={activeTab === 'preview' ? markdownContent : rawMarkdownContent} 
-                  rawView={activeTab === 'raw'} 
+                  rawView={activeTab === 'raw'}
+                  currentPage={syncNavigation ? currentPage : undefined}
+                  onPageCountChange={syncNavigation ? handleMarkdownPageCountChange : undefined}
                 />
               </div>
 

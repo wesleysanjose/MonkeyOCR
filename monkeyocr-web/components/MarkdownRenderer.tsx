@@ -1,22 +1,54 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
+import { splitMarkdownByPages, getTotalPages, getMarkdownPage } from '../lib/markdownUtils';
 
 interface MarkdownRendererProps {
   content: string;
   rawView?: boolean;
+  currentPage?: number;
+  onPageCountChange?: (totalPages: number) => void;
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ 
   content, 
-  rawView = false 
+  rawView = false,
+  currentPage,
+  onPageCountChange
 }) => {
+  const [displayContent, setDisplayContent] = useState<string>(content);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  useEffect(() => {
+    if (!content) {
+      setDisplayContent('');
+      setTotalPages(1);
+      return;
+    }
+
+    // If currentPage is provided, we're in page mode
+    if (currentPage !== undefined) {
+      // Get total pages and notify parent
+      const pageCount = getTotalPages(content);
+      setTotalPages(pageCount);
+      if (onPageCountChange && pageCount !== totalPages) {
+        onPageCountChange(pageCount);
+      }
+
+      // Get content for current page
+      const pageContent = getMarkdownPage(content, currentPage);
+      setDisplayContent(pageContent);
+    } else {
+      // Show all content
+      setDisplayContent(content);
+    }
+  }, [content, currentPage, onPageCountChange, totalPages]);
   if (rawView) {
     return (
       <textarea
-        value={content}
+        value={displayContent}
         readOnly
         className="w-full h-[800px] p-4 border border-gray-300 rounded-lg font-mono text-sm resize-none overflow-auto"
       />
@@ -96,7 +128,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
         }}
       >
-        {content}
+        {displayContent}
       </ReactMarkdown>
     </div>
   );

@@ -9,17 +9,29 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface PDFViewerProps {
   file: File | null;
   layoutPdfBlob?: Blob | null;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
-export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob }) => {
+export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, currentPage: externalPage, onPageChange }) => {
   const [numPages, setNumPages] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [internalPage, setInternalPage] = useState<number>(1);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [scale, setScale] = useState<number>(1.0);
   const [pageWidth, setPageWidth] = useState<number>(0);
   const [pageHeight, setPageHeight] = useState<number>(0);
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  
+  // Use external page if provided, otherwise use internal state
+  const currentPage = externalPage ?? internalPage;
+  
+  // Sync internal page with external page when external control is used
+  useEffect(() => {
+    if (externalPage && externalPage !== internalPage) {
+      setInternalPage(externalPage);
+    }
+  }, [externalPage]);
 
   useEffect(() => {
     let urlToRevoke: string | null = null;
@@ -55,7 +67,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob }) => 
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
-    setCurrentPage(1);
+    if (!externalPage) {
+      setInternalPage(1);
+    }
   };
 
   const onPageLoadSuccess = ({ width, height }: { width: number; height: number }) => {
@@ -80,11 +94,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob }) => 
   };
 
   const goToPrevPage = () => {
-    setCurrentPage((prev) => Math.max(1, prev - 1));
+    const newPage = Math.max(1, currentPage - 1);
+    if (onPageChange) {
+      onPageChange(newPage);
+    } else {
+      setInternalPage(newPage);
+    }
   };
 
   const goToNextPage = () => {
-    setCurrentPage((prev) => Math.min(numPages, prev + 1));
+    const newPage = Math.min(numPages, currentPage + 1);
+    if (onPageChange) {
+      onPageChange(newPage);
+    } else {
+      setInternalPage(newPage);
+    }
   };
 
   const zoomIn = () => {
