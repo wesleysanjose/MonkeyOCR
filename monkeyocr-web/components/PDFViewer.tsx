@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -22,6 +22,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
   const [pageWidth, setPageWidth] = useState<number>(0);
   const [pageHeight, setPageHeight] = useState<number>(0);
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Use external page if provided, otherwise use internal state
   const currentPage = externalPage ?? internalPage;
@@ -77,17 +78,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
     setPageHeight(height);
     
     // Only auto-fit on initial load or when explicitly requested
-    if (isInitialLoad) {
+    if (isInitialLoad && containerRef.current) {
       // Calculate scale to fit the page in the viewport
-      // Viewport dimensions (accounting for padding)
-      const viewportWidth = 750; // Approximate width of container
-      const viewportHeight = 700; // Height minus controls
+      const viewportWidth = containerRef.current.clientWidth;
+      const viewportHeight = containerRef.current.clientHeight;
       
       const scaleX = viewportWidth / width;
       const scaleY = viewportHeight / height;
       
       // Use the smaller scale to ensure the entire page fits
-      const fitScale = Math.min(scaleX, scaleY, 1.0) * 0.9; // 0.9 for some padding
+      const fitScale = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
       setScale(fitScale);
       setIsInitialLoad(false);
     }
@@ -116,7 +116,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
   };
 
   const zoomOut = () => {
-    setScale((prev) => Math.max(prev - 0.25, 0.5));
+    setScale((prev) => Math.max(prev - 0.25, 0.1));
   };
 
   const resetZoom = () => {
@@ -124,14 +124,24 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
   };
 
   const fitToPage = () => {
-    if (pageWidth && pageHeight) {
-      const viewportWidth = 750;
-      const viewportHeight = 700;
+    if (pageWidth && pageHeight && containerRef.current) {
+      const viewportWidth = containerRef.current.clientWidth;
+      const viewportHeight = containerRef.current.clientHeight;
       
       const scaleX = viewportWidth / pageWidth;
       const scaleY = viewportHeight / pageHeight;
       
-      const fitScale = Math.min(scaleX, scaleY, 1.0) * 0.9;
+      // Fit to the smaller dimension to ensure entire page is visible
+      const fitScale = Math.min(scaleX, scaleY) * 0.9;
+      setScale(fitScale);
+    }
+  };
+
+  const fitToWidth = () => {
+    if (pageWidth && containerRef.current) {
+      const viewportWidth = containerRef.current.clientWidth;
+      // Fit to container width for optimal reading
+      const fitScale = (viewportWidth / pageWidth) * 0.9;
       setScale(fitScale);
     }
   };
@@ -174,13 +184,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
               </svg>
             </button>
-            <div className="ml-4 border-l pl-4">
+            <div className="ml-4 border-l pl-4 flex items-center space-x-2">
               <button
                 onClick={fitToPage}
                 className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors text-sm font-medium"
-                title="Fit to Page"
+                title="Fit entire page in view"
               >
                 Fit to Page
+              </button>
+              <button
+                onClick={fitToWidth}
+                className="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition-colors text-sm font-medium"
+                title="Fit to container width"
+              >
+                Fit to Width
               </button>
             </div>
           </div>
@@ -189,7 +206,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, layoutPdfBlob, curre
           </div>
         </div>
         
-        <div className="h-[750px] overflow-auto flex items-center justify-center bg-gray-50">
+        <div ref={containerRef} className="h-[750px] overflow-auto flex items-center justify-center bg-gray-50">
           {imageUrl ? (
             <img 
               src={imageUrl} 
